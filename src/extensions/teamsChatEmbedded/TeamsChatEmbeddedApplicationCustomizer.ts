@@ -44,10 +44,7 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
       //Detect if the SharePoint page is in edit mode
       //If so, end the execution
       if (window.location.href.toLowerCase().indexOf("mode=edit") !== -1) {
-        console.log("Edit mode detected, not rendering the chat component.");
         return;
-      } else {
-        console.log("Not in edit mode, rendering the chat component.");
       }
       this._bottomPlaceholder =
         this.context.placeholderProvider.tryCreateContent(
