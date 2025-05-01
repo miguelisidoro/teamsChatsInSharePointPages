@@ -29,9 +29,75 @@ export interface ITeamsChatEmbeddedApplicationCustomizerProperties {}
 /** A Custom Action which can be run during execution of a Client Side Application */
 export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicationCustomizer<ITeamsChatEmbeddedApplicationCustomizerProperties> {
   private _bottomPlaceholder: PlaceholderContent | undefined;
+  private _isEditMode: boolean = false; // Keep track of the edit mode
+  private _observer: MutationObserver | null = null;
 
   @override
   public async onInit(): Promise<void> {
+    // Check initial edit mode state
+    this._isEditMode = this._checkIfInEditMode();
+
+    if (!this._isEditMode) {
+      await this._renderChat();
+    }
+
+    // Listen for page state changes
+    this.context.application.navigatedEvent.add(this, this._onNavigatedEvent);
+
+    // Set up MutationObserver to detect DOM changes (for edit mode toggle)
+    this._setupEditModeObserver();
+
+    return Promise.resolve();
+  }
+
+  private _checkIfInEditMode(): boolean {
+    // Check URL for edit mode
+    if (window.location.href.toLowerCase().indexOf("mode=edit") !== -1) {
+      return true;
+    }
+  }
+
+  private _setupEditModeObserver(): void {
+    // Create mutation observer to watch for edit mode changes
+    this._observer = new MutationObserver((mutations) => {
+      const currentEditMode = this._checkIfInEditMode();
+
+      // Only update if edit mode state has changed
+      if (currentEditMode !== this._isEditMode) {
+        this._isEditMode = currentEditMode;
+
+        if (!this._isEditMode) {
+          this._renderChat().catch(console.error);
+        } else {
+          this._clearChat();
+        }
+      }
+    });
+
+    // Start observing the document with the configured parameters
+    this._observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
+
+  private async _onNavigatedEvent(): Promise<void> {
+    const isInEditMode = this._checkIfInEditMode();
+
+    if (isInEditMode !== this._isEditMode) {
+      this._isEditMode = isInEditMode;
+
+      if (!this._isEditMode) {
+        await this._renderChat();
+      } else {
+        this._clearChat();
+      }
+    }
+  }
+
+  private async _renderChat(): Promise<void> {
     try {
       //Detect if the SharePoint page is running inside Microsoft Teams
       //If in Microsoft Teams end the execution
@@ -41,15 +107,18 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
         return;
       }
     } catch (exp) {
-      //Detect if the SharePoint page is in edit mode
-      //If so, end the execution
-      if (window.location.href.toLowerCase().indexOf("mode=edit") !== -1) {
+      if (!this._bottomPlaceholder) {
+        this._bottomPlaceholder =
+          this.context.placeholderProvider.tryCreateContent(
+            PlaceholderName.Bottom
+          );
+      }
+
+      if (!this._bottomPlaceholder) {
+        console.error("Could not find bottom placeholder");
         return;
       }
-      this._bottomPlaceholder =
-        this.context.placeholderProvider.tryCreateContent(
-          PlaceholderName.Bottom
-        );
+
       let profilePictureUrl: string;
       //Get User Profile from Microsoft Graph to ensure the most updated profile picture
       //If permission is not granted by the administrator fallback to the classic SharePoint profile picture
@@ -72,7 +141,24 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
         ReactDOM.render(chatNoPicture, this._bottomPlaceholder.domElement);
       }
     }
+  }
 
-    return Promise.resolve();
+  private _clearChat(): void {
+    if (this._bottomPlaceholder && this._bottomPlaceholder.domElement) {
+      ReactDOM.unmountComponentAtNode(this._bottomPlaceholder.domElement);
+    }
+  }
+
+  public onDispose(): void {
+    // Clean up the observer when the customizer is disposed
+    if (this._observer) {
+      this._observer.disconnect();
+      this._observer = null;
+    }
+
+    // Make sure to clean up the bottom placeholder
+    this._clearChat();
+
+    super.onDispose();
   }
 }
