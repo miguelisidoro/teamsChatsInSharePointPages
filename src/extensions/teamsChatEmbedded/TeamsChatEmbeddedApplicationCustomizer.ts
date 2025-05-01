@@ -35,22 +35,22 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
   @override
   public async onInit(): Promise<void> {
     // Check initial edit mode state
-    this._isEditMode = this._checkIfInEditMode();
+    this._isEditMode = this.checkIfInEditMode();
 
     if (!this._isEditMode) {
-      await this._renderChat();
+      await this.renderChat();
     }
 
     // Listen for page state changes
-    this.context.application.navigatedEvent.add(this, this._onNavigatedEvent);
+    this.context.application.navigatedEvent.add(this, this.onNavigatedEvent);
 
     // Set up MutationObserver to detect DOM changes (for edit mode toggle)
-    this._setupEditModeObserver();
+    this.setupEditModeObserver();
 
     return Promise.resolve();
   }
 
-  private _checkIfInEditMode(): boolean {
+  private checkIfInEditMode(): boolean {
     // Check URL for edit mode
     if (window.location.href.toLowerCase().indexOf("mode=edit") !== -1) {
       return true;
@@ -61,19 +61,19 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
     return editModeElements.length > 0;
   }
 
-  private _setupEditModeObserver(): void {
+  private setupEditModeObserver(): void {
     // Create mutation observer to watch for edit mode changes
     this._observer = new MutationObserver((mutations) => {
-      const currentEditMode = this._checkIfInEditMode();
+      const currentEditMode = this.checkIfInEditMode();
 
       // Only update if edit mode state has changed
       if (currentEditMode !== this._isEditMode) {
         this._isEditMode = currentEditMode;
 
         if (!this._isEditMode) {
-          this._renderChat().catch(console.error);
+          this.renderChat().catch(console.error);
         } else {
-          this._clearChat();
+          this.clearChat();
         }
       }
     });
@@ -87,21 +87,21 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
     });
   }
 
-  private async _onNavigatedEvent(): Promise<void> {
-    const isInEditMode = this._checkIfInEditMode();
+  private async onNavigatedEvent(): Promise<void> {
+    const isInEditMode = this.checkIfInEditMode();
 
     if (isInEditMode !== this._isEditMode) {
       this._isEditMode = isInEditMode;
 
       if (!this._isEditMode) {
-        await this._renderChat();
+        await this.renderChat();
       } else {
-        this._clearChat();
+        this.clearChat();
       }
     }
   }
 
-  private async _renderChat(): Promise<void> {
+  private async renderChat(): Promise<void> {
     try {
       //Detect if the SharePoint page is running inside Microsoft Teams
       //If in Microsoft Teams end the execution
@@ -147,7 +147,7 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
     }
   }
 
-  private _clearChat(): void {
+  private clearChat(): void {
     if (this._bottomPlaceholder && this._bottomPlaceholder.domElement) {
       ReactDOM.unmountComponentAtNode(this._bottomPlaceholder.domElement);
     }
@@ -161,7 +161,7 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
     }
 
     // Make sure to clean up the bottom placeholder
-    this._clearChat();
+    this.clearChat();
 
     super.onDispose();
   }
