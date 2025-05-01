@@ -10,7 +10,7 @@
     "build": "gulp bundle",
     "clean": "gulp clean",
     "test": "gulp test",
-    "serve": "gulp serve"
+    "serve": "gulp bundle --custom-serve --max_old_space_size=4096 && fast-serve"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.26.1",
@@ -34,6 +34,7 @@
     "ajv": "^6.12.5",
     "gulp": "4.0.2",
     "typescript": "4.5.5",
-    "@microsoft/sp-module-interfaces": "1.16.0"
+    "@microsoft/sp-module-interfaces": "1.16.0",
+    "spfx-fast-serve-helpers": "~1.16.0"
   }
 }
