@@ -7,10 +7,14 @@
   },
   "main": "lib/index.js",
   "scripts": {
-    "build": "gulp bundle",
+    "build": "gulp build",
     "clean": "gulp clean",
     "test": "gulp test",
-    "serve": "gulp bundle --custom-serve --max_old_space_size=4096 && fast-serve"
+    "bundle": "gulp bundle",
+    "bundle-ship": "gulp bundle --ship",
+    "package-solution": "gulp package-solution --ship",
+    "serve": "gulp serve --nobrowser",
+    "fast-serve": "gulp bundle --custom-serve --max_old_space_size=4096 && fast-serve"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.26.1",
