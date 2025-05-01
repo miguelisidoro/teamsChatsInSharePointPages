@@ -55,6 +55,10 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
     if (window.location.href.toLowerCase().indexOf("mode=edit") !== -1) {
       return true;
     }
+
+    // Check for the presence of edit mode elements in the DOM
+    const editModeElements = document.querySelectorAll(".ms-SPCanvas");
+    return editModeElements.length > 0;
   }
 
   private _setupEditModeObserver(): void {
