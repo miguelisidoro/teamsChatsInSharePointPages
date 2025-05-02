@@ -10,75 +10,53 @@ import {
   PlaceholderContent,
   PlaceholderName,
 } from "@microsoft/sp-application-base";
-
 import Chat from "../Components/Chat/Chat";
 import ChatNoPicture from "../Components/ChatNoPicture/ChatNoPicture";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-
 import { graphfi, SPFx } from "@pnp/graph";
 import "@pnp/graph/users";
 import "@pnp/graph/photos";
-
 import * as strings from "TeamsChatEmbeddedApplicationCustomizerStrings";
-
 import { app } from "@microsoft/teams-js";
 
 export interface ITeamsChatEmbeddedApplicationCustomizerProperties {}
 
-/** A Custom Action which can be run during execution of a Client Side Application */
 export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicationCustomizer<ITeamsChatEmbeddedApplicationCustomizerProperties> {
   private _bottomPlaceholder: PlaceholderContent | undefined;
-  private _isEditMode: boolean = false; // Keep track of the edit mode
+  private _isEditMode: boolean = false;
   private _observer: MutationObserver | null = null;
 
   @override
   public async onInit(): Promise<void> {
-    // Check initial edit mode state
-    this._isEditMode = this.checkIfInEditMode();
+    this._isEditMode = this._checkIfInEditMode();
+    if (!this._isEditMode) await this._renderChat();
 
-    if (!this._isEditMode) {
-      await this.renderChat();
-    }
-
-    // Listen for page state changes
-    this.context.application.navigatedEvent.add(this, this.onNavigatedEvent);
-
-    // Set up MutationObserver to detect DOM changes (for edit mode toggle)
-    this.setupEditModeObserver();
+    // Set up event listeners
+    this.context.application.navigatedEvent.add(
+      this,
+      this._handleEditModeChange
+    );
+    this._setupEditModeObserver();
 
     return Promise.resolve();
   }
 
-  private checkIfInEditMode(): boolean {
-    // Check URL for edit mode
-    if (window.location.href.toLowerCase().indexOf("mode=edit") !== -1) {
-      return true;
-    }
-
-    // Check for the presence of edit mode elements in the DOM
-    const editModeElements = document.querySelectorAll(".ms-SPCanvas");
-    return editModeElements.length > 0;
+  private _checkIfInEditMode(): boolean {
+    return (
+      window.location.href.toLowerCase().indexOf("mode=edit") !== -1 ||
+      document.querySelectorAll(".ms-SPCanvas").length > 0
+    );
   }
 
-  private setupEditModeObserver(): void {
-    // Create mutation observer to watch for edit mode changes
-    this._observer = new MutationObserver((mutations) => {
-      const currentEditMode = this.checkIfInEditMode();
-
-      // Only update if edit mode state has changed
+  private _setupEditModeObserver(): void {
+    this._observer = new MutationObserver(async () => {
+      const currentEditMode = this._checkIfInEditMode();
       if (currentEditMode !== this._isEditMode) {
-        this._isEditMode = currentEditMode;
-
-        if (!this._isEditMode) {
-          this.renderChat().catch(console.error);
-        } else {
-          this.clearChat();
-        }
+        await this._handleEditModeChange();
       }
     });
 
-    // Start observing the document with the configured parameters
     this._observer.observe(document.body, {
       childList: true,
       subtree: true,
@@ -87,82 +65,64 @@ export default class TeamsChatEmbeddedApplicationCustomizer extends BaseApplicat
     });
   }
 
-  private async onNavigatedEvent(): Promise<void> {
-    const isInEditMode = this.checkIfInEditMode();
+  private async _handleEditModeChange(): Promise<void> {
+    const isInEditMode = this._checkIfInEditMode();
+    if (isInEditMode === this._isEditMode) return;
 
-    if (isInEditMode !== this._isEditMode) {
-      this._isEditMode = isInEditMode;
-
-      if (!this._isEditMode) {
-        await this.renderChat();
-      } else {
-        this.clearChat();
-      }
+    this._isEditMode = isInEditMode;
+    if (!this._isEditMode) {
+      await this._renderChat();
+    } else {
+      this._clearChat();
     }
   }
 
-  private async renderChat(): Promise<void> {
+  private async _renderChat(): Promise<void> {
     try {
-      //Detect if the SharePoint page is running inside Microsoft Teams
-      //If in Microsoft Teams end the execution
+      // Skip if running in Teams
       await app.initialize();
-      const context = await app.getContext();
-      if (context) {
-        return;
-      }
+      if (await app.getContext()) return;
     } catch (exp) {
+      // Only create the placeholder if needed
       if (!this._bottomPlaceholder) {
         this._bottomPlaceholder =
           this.context.placeholderProvider.tryCreateContent(
             PlaceholderName.Bottom
           );
+        if (!this._bottomPlaceholder) return;
       }
 
-      if (!this._bottomPlaceholder) {
-        console.error("Could not find bottom placeholder");
-        return;
-      }
-
-      let profilePictureUrl: string;
-      //Get User Profile from Microsoft Graph to ensure the most updated profile picture
-      //If permission is not granted by the administrator fallback to the classic SharePoint profile picture
       try {
+        // Try to get user photo and render chat with photo
         const graph = graphfi().using(SPFx(this.context));
         const photoValue = await graph.me.photo.getBlob();
-        const url = window.URL || window.webkitURL;
-        profilePictureUrl = url.createObjectURL(photoValue);
-        //Render Chat component with the user profile picture
-        const chat = React.createElement(Chat, {
-          label: strings.Label,
-          userPhoto: profilePictureUrl,
-        });
-        ReactDOM.render(chat, this._bottomPlaceholder.domElement);
+        const profilePictureUrl = URL.createObjectURL(photoValue);
+        ReactDOM.render(
+          React.createElement(Chat, {
+            label: strings.Label,
+            userPhoto: profilePictureUrl,
+          }),
+          this._bottomPlaceholder.domElement
+        );
       } catch (exPhoto) {
-        //Render Chat component without the user profile picture
-        const chatNoPicture = React.createElement(ChatNoPicture, {
-          label: strings.Label,
-        });
-        ReactDOM.render(chatNoPicture, this._bottomPlaceholder.domElement);
+        // Fallback to chat without photo
+        ReactDOM.render(
+          React.createElement(ChatNoPicture, { label: strings.Label }),
+          this._bottomPlaceholder.domElement
+        );
       }
     }
   }
 
-  private clearChat(): void {
-    if (this._bottomPlaceholder && this._bottomPlaceholder.domElement) {
+  private _clearChat(): void {
+    if (this._bottomPlaceholder?.domElement) {
       ReactDOM.unmountComponentAtNode(this._bottomPlaceholder.domElement);
     }
   }
 
   public onDispose(): void {
-    // Clean up the observer when the customizer is disposed
-    if (this._observer) {
-      this._observer.disconnect();
-      this._observer = null;
-    }
-
-    // Make sure to clean up the bottom placeholder
-    this.clearChat();
-
+    this._observer?.disconnect();
+    this._clearChat();
     super.onDispose();
   }
 }
